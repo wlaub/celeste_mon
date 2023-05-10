@@ -135,7 +135,7 @@ with open(sys.argv[1], 'rb') as fp:
             raise
             print(e)
             pass
-        if len(msgs) > 35000:
+        if len(msgs) > 40000:
             break
 
 
@@ -220,10 +220,10 @@ class Room():
                 self.bounds[0] = msg.pos[0]
             if msg.pos[0] > self.bounds[1]:
                 self.bounds[1] = msg.pos[0]
-            if msg.pos[1] < self.bounds[0]:
-                self.bounds[0] = msg.pos[1]
-            if msg.pos[1] > self.bounds[1]:
-                self.bounds[1] = msg.pos[1]
+            if msg.pos[1] < self.bounds[2]:
+                self.bounds[2] = msg.pos[1]
+            if msg.pos[1] > self.bounds[3]:
+                self.bounds[3] = msg.pos[1]
 
     def add_msg(self, msg):
         if self.done:
@@ -258,6 +258,7 @@ class Room():
         for run in self.runs:
             run.plot(ax)
         #TODO: draw box
+        ax.set_title(f'{self}')
 
         ax.set_aspect('equal')
 
