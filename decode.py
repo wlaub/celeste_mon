@@ -5,7 +5,12 @@ import mmap
 import enum
 import re
 import itertools
+import json
+import os
+from collections import defaultdict
+
 from matplotlib import pyplot as plt
+from matplotlib import ticker, patches
 
 class MessageId(enum.Enum):
     default = 0x00
@@ -26,6 +31,8 @@ class MessageId(enum.Enum):
 
 class Message():
     def __init__(self, fp):
+        self.file_start_idx = fp.tell()
+
         self.stamp_raw = fp.read(8)
         if len(self.stamp_raw) == 0:
             raise RuntimeError('done')
@@ -39,6 +46,8 @@ class Message():
         self.size_raw = fp.read(4)
         self.size = struct.unpack('I', self.size_raw)[0]
         self.data = fp.read(self.size)
+
+        self.file_end_idx = fp.tell()-1
 
         self.parse()
 
@@ -108,11 +117,17 @@ class Message():
         for line in lines[3:-1]:
             self.decode_status_line(line)
 
-        room, _, time = lines[-1].split()
-        self.room = room[1:-1]
-        _, frame = time.split('(')
-        frame = frame.split(')')[0]
-        self.frame = int(frame)
+        try:
+            #TODO: handle truncated lines
+            room, _, time = lines[-1].split()
+            self.room = room[1:-1]
+            _, frame = time.split('(')
+            frame = frame.split(')')[0]
+            self.frame = int(frame)
+        except:
+            self.room = lines[-1].split(']')[0][1:]
+            self.frame = -1
+            print(lines[-1])
 
         self.is_state=True
 
@@ -121,22 +136,6 @@ class Message():
 
     def __repr__(self):
         return str(self)
-
-msgs = []
-
-with open(sys.argv[1], 'rb') as fp:
-    while True:
-        try:
-            msg = Message(fp)
-            msgs.append(msg)
-        except RuntimeError:
-            break
-        except Exception as e:
-            raise
-            print(e)
-            pass
-        if len(msgs) > 40000:
-            break
 
 
 class Run():
@@ -186,7 +185,7 @@ class Run():
         color = 'k'
         alpha = 0.25
         if not self.dead:
-            color='#00ff00'
+            color='#ff00ff'
             zorder = 10
             alpha = 1
 
@@ -203,6 +202,11 @@ class Room():
         self.done = False
 
         self.bounds = None
+        self.start_idx = None
+        self.end_idx = None
+
+    def key(self):
+        return (self.name, self.start_idx, self.end_idx)
 
     def valid(self):
         return len(self.runs) != 0
@@ -216,14 +220,17 @@ class Room():
                 msg.pos[1], #ymax
                 ]
         else:
-            if msg.pos[0] < self.bounds[0]:
-                self.bounds[0] = msg.pos[0]
-            if msg.pos[0] > self.bounds[1]:
-                self.bounds[1] = msg.pos[0]
-            if msg.pos[1] < self.bounds[2]:
-                self.bounds[2] = msg.pos[1]
-            if msg.pos[1] > self.bounds[3]:
-                self.bounds[3] = msg.pos[1]
+            self.bounds[0] = min(self.bounds[0], msg.pos[0])
+            self.bounds[1] = max(self.bounds[1], msg.pos[0])
+            self.bounds[2] = min(self.bounds[2], msg.pos[1])
+            self.bounds[3] = max(self.bounds[3], msg.pos[1])
+
+
+    def update_index(self, msg):
+        if self.start_idx is None:
+            self.start_idx = msg.file_start_idx
+
+        self.end_idx = msg.file_end_idx
 
     def add_msg(self, msg):
         if self.done:
@@ -238,6 +245,7 @@ class Room():
             self.name = msg.room
 
         self.update_bounds(msg)
+        self.update_index(msg)
 
         if msg.room != self.name:
             self.trun.done = True
@@ -257,33 +265,137 @@ class Room():
     def plot(self, ax):
         for run in self.runs:
             run.plot(ax)
-        #TODO: draw box
-        ax.set_title(f'{self}')
-
-        ax.set_aspect('equal')
 
     def __repr__(self):
         return f'{self.name}: {len(self.runs)} runs\nBounds: {self.bounds}'
 
-troom = Room()
-rooms = []
-for msg in msgs:
-    troom.add_msg(msg)
-    if troom.done and troom.valid():
-        print(troom)
+def read_file(filename, start = 0, stop=None, limit = None):
+    msgs = []
+
+    with open(filename, 'rb') as fp:
+        fp.seek(start)
+        while True:
+            try:
+                msg = Message(fp)
+                msgs.append(msg)
+            except RuntimeError:
+                break
+            except Exception as e:
+                raise
+                print(e)
+                pass
+            if stop is not None and fp.tell() >= stop:
+                break
+            if limit is not None and len(msgs) > limit:
+                break
+
+    return msgs
+
+def make_index(rooms):
+    index = defaultdict(list)
+    for room in rooms:
+        index[room.name].append([room.start_idx, room.end_idx])
+    return index
+
+def write_index(filename, index):
+    with open(filename, 'w') as fp:
+        json.dump(index, fp)
+
+def read_index(filename):
+    with open(filename, 'r') as fp:
+        data = json.load(fp)
+    return data
+
+def load_room_from_index(filename, index, room_name):
+    result = []
+    for start, end in index[room_name]:
+        msgs = read_file(filename, start, end)
+        rooms = extract_rooms(msgs)
+        if len(rooms) != 1:
+            raise RuntimeError(f'Got {len(rooms)} rooms from {room_name}, {start}, {end}')
+        result.extend(rooms)
+    return result
+
+def extract_rooms(msgs):
+
+    troom = Room()
+    rooms = []
+    for msg in msgs:
+        troom.add_msg(msg)
+        if troom.done and troom.valid():
+            print(troom)
+            rooms.append(troom)
+            troom = Room()
+    if troom.valid() and  not troom in rooms:
         rooms.append(troom)
-        troom = Room()
-if not troom in rooms:
-    rooms.append(troom)
+
+    return rooms
+
+
+
+class RoomSet():
+    def __init__(self, infile):
+        self.infile = infile
+        idxfile= self.idxfile = os.path.splitext(infile)[0]+'_index.json'
+        self.room_map = defaultdict(list)
+        if not os.path.exists(idxfile):
+            self.generate_index()
+        else:
+            self.index = read_index(self.idxfile)
+
+    def generate_index(self):
+        print(f'Generating index...')
+        msgs = read_file(self.infile)
+        rooms = extract_rooms(msgs)
+        index = self.index = make_index(rooms)
+        write_index(self.idxfile, self.index)
+        for room in rooms:
+            self.room_map[room].append(room)
+
+    def get_room(self, room_name):
+        if not room_name in self.room_map.keys():
+            rooms = load_room_from_index(self.infile, self.index, room_name)
+            self.room_map[room_name] = rooms
+        return self.room_map[room_name]
+
+    def plot_room(self, ax, room_name):
+        runs = 0
+        bounds = None
+        for room in self.get_room(room_name):
+            room.plot(ax)
+            runs += len(room.runs)
+            if bounds is None:
+                bounds = room.bounds
+            else:
+                bounds[0] = min(bounds[0], room.bounds[0])
+                bounds[1] = max(bounds[1], room.bounds[1])
+                bounds[2] = min(bounds[2], room.bounds[2])
+                bounds[3] = max(bounds[3], room.bounds[3])
+
+        title = f'{room_name}: {runs} runs '
+        print(bounds)
+
+        rect = patches.Rectangle(
+                    (bounds[0], bounds[2]), bounds[1]-bounds[0], bounds[3]-bounds[2],
+                    linewidth = 1, edgecolor = 'k', facecolor='none',
+                    )
+        ax.add_patch(rect)
+
+    def configure_ax(self, ax):
+        ax.set_aspect('equal')
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(base=8))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(base=8))
+        ax.grid(True, which='major', axis='both')
+        ax.set_axisbelow(True)
+
+
+infile = sys.argv[1]
+rooms = RoomSet(infile)
 
 fig, ax = plt.subplots()
-
-rooms = sorted(rooms, key=lambda x:len(x.runs), reverse=True)
-rooms[0].plot(ax)
-
-#for room in rooms:
-#    room.plot(ax)
+rooms.plot_room(ax, 'C13berry')
+rooms.plot_room(ax, 'C11')
+rooms.plot_room(ax, 'C12')
+rooms.configure_ax(ax)
 plt.show()
-
-print(len(rooms))
 
