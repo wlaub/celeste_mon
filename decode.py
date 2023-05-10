@@ -47,17 +47,22 @@ class Message():
         return stamp_raw + self.id_raw + self.sig_raw + self.size_raw + self.data
 
     def parse(self):
+        self.is_state = False
         self.nocontrol = False
+        self.dead = False
         self.statuses = []
 
         #find status string
         offset = self.data.find(b'Pos')
-        strlen = self.data[offset-2]
-        if strlen == 0:
-            strlen = self.data[offset-1]
-        raw = self.data[offset:offset+strlen].decode('ascii')
-        self.status_string = raw
-       
+        if offset == -1:
+            self.status_string = ''
+        else:
+            strlen = self.data[offset-2]
+            if strlen == 0:
+                strlen = self.data[offset-1]
+            raw = self.data[offset:offset+strlen].decode('ascii')
+            self.status_string = raw
+
         if len(self.status_string) == 0:
             pass
         else:
@@ -81,6 +86,8 @@ class Message():
             for part in parts:
                 if '(' in part:
                     part = part.split('(')[0]
+                if part == 'Dead':
+                    self.dead=True
                 self.statuses.append(part)
 
     def decode_info_string(self):
@@ -104,7 +111,10 @@ class Message():
         room, _, time = lines[-1].split()
         self.room = room[1:-1]
         _, frame = time.split('(')
-        self.frame = int(frame[:-1])
+        frame = frame.split(')')[0]
+        self.frame = int(frame)
+
+        self.is_state=True
 
     def __str__(self):
         return f'{self.pos}'
@@ -122,9 +132,75 @@ with open(sys.argv[1], 'rb') as fp:
         except RuntimeError:
             break
         except Exception as e:
+            raise
             print(e)
             pass
+        if len(msgs) > 30000:
+            break
 
+#my magic state machine
+sequences = []
+sequence = []
 
+def end_sequence(seq, seqs):
+    if len(seq) > 0:
+        seqs.append(seq)
+        return []
+    else:
+        return seq
+
+for msg in msgs:
+    if not msg.is_state:
+        sequence = end_sequence(sequence, sequences)
+    else:
+        if msg.nocontrol or msg.dead:
+            if len(sequence) > 0:
+                sequence.append(msg)
+            sequence = end_sequence(sequence, sequences)
+        else:
+            sequence.append(msg)
+
+fig, ax = plt.subplots()
+
+xdeaths = []
+ydeaths = []
+xspawns = []
+yspawns = []
+for seq in sequences:
+    xvals = []
+    yvals = []
+    for msg in seq:
+        xvals.append(msg.pos[0])
+        yvals.append(msg.pos[1])
+
+    if seq[-1].dead:
+        xdeaths.append(seq[-1].pos[0])
+        ydeaths.append(seq[-1].pos[1])
+
+    xspawns.append(seq[0].pos[0])
+    yspawns.append(seq[0].pos[1])
+
+    zorder = 0
+    color = 'k'
+    alpha = 0.25
+    if seq[-1].nocontrol:
+        color='#00ff00'
+        zorder = 10
+        alpha = 1
+    elif seq[-1].dead:
+        pass
+    else:
+        color = 'b'
+        zorder = 10
+        alpha = 1
+
+    ax.scatter(xvals, yvals, s=1, c=color, zorder=zorder, alpha = alpha)
+    
+ax.scatter(xdeaths, ydeaths, s=8, marker='x', c='r')
+ax.scatter(xspawns, yspawns, s=8, c='b')
+ax.set_aspect('equal')
+plt.show()
+
+print(len(sequences))
 print(len(msgs))
 
