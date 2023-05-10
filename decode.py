@@ -40,46 +40,66 @@ class Message():
         self.size = struct.unpack('I', self.size_raw)[0]
         self.data = fp.read(self.size)
 
-        self.decode_info_string()
+        self.parse()
 
     def encode(self):
         stamp_raw = struct.pack('f', self.stamp)
         return stamp_raw + self.id_raw + self.sig_raw + self.size_raw + self.data
 
-    def decode_info_string(self):
+    def parse(self):
+        self.nocontrol = False
+        self.statuses = []
 
+        #find status string
         offset = self.data.find(b'Pos')
         strlen = self.data[offset-2]
         if strlen == 0:
             strlen = self.data[offset-1]
         raw = self.data[offset:offset+strlen].decode('ascii')
         self.status_string = raw
-        
-        lines = [x.strip() for x in raw.split('\n')]
-        print(self.stamp)
-        print(lines)
-        try:
-            _, x, y = lines[0].split()
-            self.pos = (float(x[:-1]), -float(y))
-        except:
-            print(self.data)
-            print(raw)
-            print(self.status_string)
-            print(f'--> {lines[0]}')
-            raise
+       
+        if len(self.status_string) == 0:
+            pass
+        else:
+            self.decode_info_string()
 
+    def decode_status_line(self, line):
+        liftboost_re = '.*?\((.*)\): (.*?), (.*)'
+
+        if line.startswith('Stamina'):
+            parts = line.split()
+            stam = parts[1]
+            self.stamina = float(stam)
+            self.state = parts[2:]
+        elif line.startswith('LiftBoost'):
+            m = re.match(liftboost_re, line)
+            self.liftboost = m .groups()
+        elif line.startswith('NoControl'):
+            self.nocontrol = True
+        else:
+            parts =  line.split()
+            for part in parts:
+                if '(' in part:
+                    part = part.split('(')[0]
+                self.statuses.append(part)
+
+    def decode_info_string(self):
+        lines = [x.strip() for x in self.status_string.split('\n')]
+
+        #position
+        _, x, y = lines[0].split()
+        self.pos = (float(x[:-1]), -float(y))
+
+        #speed
         _, x, y = lines[1].split()       
         self.speed = (float(x[:-1]), -float(y))
 
+        #velocity
         _, x, y = lines[2].split()
         self.speed = (float(x[:-1]), -float(y))
 
-        parts = lines[3].split()
-        stam = parts[1]
-        self.stamina = float(stam)
-        self.state = parts[2:]
-
-        self.statuses = lines[4:-1]
+        for line in lines[3:-1]:
+            self.decode_status_line(line)
 
         room, _, time = lines[-1].split()
         self.room = room[1:-1]

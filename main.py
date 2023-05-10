@@ -102,7 +102,9 @@ try:
 
             if msg.data != last_msg.data:
                 if last_unique is not None:
-                    print(f'{(msg.stamp - last_unique.stamp)*60:.2f}')
+                    delta = (msg.stamp - last_unique.stamp)*60
+                    if delta > 1.05:
+                        print(delta)
                 with open(outfile, 'ab') as fpo:
                     fpo.write(msg.encode())
                 last_unique = msg
