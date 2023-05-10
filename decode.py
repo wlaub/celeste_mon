@@ -135,72 +135,154 @@ with open(sys.argv[1], 'rb') as fp:
             raise
             print(e)
             pass
-        if len(msgs) > 30000:
+        if len(msgs) > 35000:
             break
 
-#my magic state machine
-sequences = []
-sequence = []
 
-def end_sequence(seq, seqs):
-    if len(seq) > 0:
-        seqs.append(seq)
-        return []
-    else:
-        return seq
+class Run():
+    def __init__(self):
+        self.msgs = []
+        self.dead = False
+        self.done = False
 
-for msg in msgs:
-    if not msg.is_state:
-        sequence = end_sequence(sequence, sequences)
-    else:
-        if msg.nocontrol or msg.dead:
-            if len(sequence) > 0:
-                sequence.append(msg)
-            sequence = end_sequence(sequence, sequences)
+    def valid(self):
+        return len(self.msgs) != 0
+
+    def add_msg(self, msg):
+        if self.done:
+            print('Cant add msg: run complete.')
+            return self.done
+
+        if msg.nocontrol:
+            self.done = True
+        if msg.dead:
+            self.dead = True
+            self.done = True
+
+        if not self.done or self.valid():
+            self.msgs.append(msg)
+
+        return self.done
+
+    def plot(self, ax):
+        xdeaths = []
+        ydeaths = []
+        xspawns = []
+        yspawns = []
+        xvals = []
+        yvals = []
+        for msg in self.msgs:
+            xvals.append(msg.pos[0])
+            yvals.append(msg.pos[1])
+
+        if self.dead:
+            xdeaths.append(self.msgs[-1].pos[0])
+            ydeaths.append(self.msgs[-1].pos[1])
+
+        xspawns.append(self.msgs[0].pos[0])
+        yspawns.append(self.msgs[0].pos[1])
+
+        zorder = 0
+        color = 'k'
+        alpha = 0.25
+        if not self.dead:
+            color='#00ff00'
+            zorder = 10
+            alpha = 1
+
+        ax.scatter(xvals, yvals, s=1, c=color, zorder=zorder, alpha = alpha)
+        ax.scatter(xdeaths, ydeaths, s=8, marker='x', c='r')
+        ax.scatter(xspawns, yspawns, s=8, c='b')
+   
+
+class Room():
+    def __init__(self):
+        self.name = None
+        self.runs = []
+        self.trun = Run()
+        self.done = False
+
+        self.bounds = None
+
+    def valid(self):
+        return len(self.runs) != 0
+
+    def update_bounds(self, msg):
+        if self.bounds is None:
+            self.bounds = [
+                msg.pos[0], #xmin
+                msg.pos[0], #xmax
+                msg.pos[1], #ymin
+                msg.pos[1], #ymax
+                ]
         else:
-            sequence.append(msg)
+            if msg.pos[0] < self.bounds[0]:
+                self.bounds[0] = msg.pos[0]
+            if msg.pos[0] > self.bounds[1]:
+                self.bounds[1] = msg.pos[0]
+            if msg.pos[1] < self.bounds[0]:
+                self.bounds[0] = msg.pos[1]
+            if msg.pos[1] > self.bounds[1]:
+                self.bounds[1] = msg.pos[1]
+
+    def add_msg(self, msg):
+        if self.done:
+            print('Cant add msg: room complete.')
+            return self.done
+        
+        if not msg.is_state:
+            return self.done
+
+
+        if self.name is None:
+            self.name = msg.room
+
+        self.update_bounds(msg)
+
+        if msg.room != self.name:
+            self.trun.done = True
+            if self.trun.valid():
+                self.runs.append(self.trun)
+            self.done = True
+            return self.done
+
+        self.trun.add_msg(msg)
+        if self.trun.done:
+            if self.trun.valid():
+                self.runs.append(self.trun)
+            self.trun = Run()
+
+        return False
+
+    def plot(self, ax):
+        for run in self.runs:
+            run.plot(ax)
+        #TODO: draw box
+
+        ax.set_aspect('equal')
+
+    def __repr__(self):
+        return f'{self.name}: {len(self.runs)} runs\nBounds: {self.bounds}'
+
+troom = Room()
+rooms = []
+for msg in msgs:
+    troom.add_msg(msg)
+    if troom.done and troom.valid():
+        print(troom)
+        rooms.append(troom)
+        troom = Room()
+if not troom in rooms:
+    rooms.append(troom)
 
 fig, ax = plt.subplots()
 
-xdeaths = []
-ydeaths = []
-xspawns = []
-yspawns = []
-for seq in sequences:
-    xvals = []
-    yvals = []
-    for msg in seq:
-        xvals.append(msg.pos[0])
-        yvals.append(msg.pos[1])
+rooms = sorted(rooms, key=lambda x:len(x.runs), reverse=True)
+rooms[0].plot(ax)
 
-    if seq[-1].dead:
-        xdeaths.append(seq[-1].pos[0])
-        ydeaths.append(seq[-1].pos[1])
-
-    xspawns.append(seq[0].pos[0])
-    yspawns.append(seq[0].pos[1])
-
-    zorder = 0
-    color = 'k'
-    alpha = 0.25
-    if seq[-1].nocontrol:
-        color='#00ff00'
-        zorder = 10
-        alpha = 1
-    elif seq[-1].dead:
-        pass
-    else:
-        color = 'b'
-        zorder = 10
-        alpha = 1
-
-    ax.scatter(xvals, yvals, s=1, c=color, zorder=zorder, alpha = alpha)
-    
-ax.scatter(xdeaths, ydeaths, s=8, marker='x', c='r')
-ax.scatter(xspawns, yspawns, s=8, c='b')
-ax.set_aspect('equal')
+#for room in rooms:
+#    room.plot(ax)
 plt.show()
 
-print(len(sequences))
-print(len(msgs))
+print(len(rooms))
 
