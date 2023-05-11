@@ -443,12 +443,12 @@ def read_file(filename, start = 0, stop=None, limit = None):
             if limit is not None and len(msgs) > limit:
                 break
 
-    boop = set()
-    for msg in msgs:
-        boop.update(msg.statuses)
-        if not msg.is_state:
-            print(msg.data)
-    print(boop)
+#    boop = set()
+#    for msg in msgs:
+#        boop.update(msg.statuses)
+#        if not msg.is_state:
+#            print(msg.data)
+#    print(boop)
 
     return msgs
 
