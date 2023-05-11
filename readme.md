@@ -43,8 +43,39 @@ Example: 40 runs of a hidden berry room from the wednesday machine
 
 ![image](example_twm-c-b1.png)
 
-black dots are positions in a run that ends in a death
-red x's are deaths
-magenta dots are positions not ending in a death (including ending in a watchtower, for example)
-large blue dots are the starts of runs (respawn or room transition)
-the grid size is 8 pixels (1 in-game tile)
+* black dots are positions in a run that ends in a death
+* red x's are deaths
+* magenta dots are positions not ending in a death (including ending in a watchtower, for example)
+* large blue dots are the starts of runs (respawn or room transition)
+* the grid size is 8 pixels (1 in-game tile)
+* currently other game state information (velocity, frame number, player state, entity interactions) are not rendered
+
+In the example image, the magenta sequence corresponds to:
+1. reverse wavedash right
+1. wavedash right
+1. hit spring
+1. dash down
+1. dash left
+1. dash left
+1. dash up left
+1. fall
+1. dash right 4 times
+1. stop
+1. jump right
+1. dash up right
+1. dash down right
+1. dash right
+1. dash up
+1. fall left
+1. dash up right
+1. dash right
+1. wavedash right
+1. wavedash right
+1. dash down into kevin
+1. walk left off kevin
+1. dash right into kevin
+1. land and crouch
+1. walk left
+1. jump up
+1. dash up to exit room
+
