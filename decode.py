@@ -27,6 +27,32 @@ class MessageId(enum.Enum):
     return_data = 0x31
     update_lines = 0x32
 
+states = [
+'StNormal',
+'StClimb',
+'StDash',
+'StSwim',
+'StBoost',
+'StRedDash',
+'StHitSquash',
+'StLaunch',
+'StPickup',
+'StDreamDash',
+'StSummitLaunch',
+'StDummy',
+'StIntroWalk',
+'StIntroJump',
+'StIntroRespawn',
+'StIntroWakeUp',
+'StBirdDashTutorial',
+'StFrozen',
+'StReflectionFall',
+'StStarFly',
+'StTempleFall',
+'StCassetteFly',
+'StAttract',
+]
+
 class Bounds():
     def __init__(self):
         self.bounds = None
@@ -52,11 +78,11 @@ class Bounds():
             self.bounds[2] = min(self.bounds[2], other.bounds[2])
             self.bounds[3] = max(self.bounds[3], other.bounds[3])
 
-    def plot(self, ax, line, fill):
+    def plot(self, ax, line='k', fill='none', zorder=-10):
         bounds = self.bounds        
         rect = patches.Rectangle(
                     (bounds[0], bounds[2]), bounds[1]-bounds[0], bounds[3]-bounds[2],
-                    linewidth = 1, edgecolor = line, facecolor=fill,
+                    linewidth = 1, edgecolor = line, facecolor=fill, zorder=zorder
                     )
         ax.add_patch(rect)
 
@@ -115,7 +141,15 @@ class Message():
             parts = line.split()
             stam = parts[1]
             self.stamina = float(stam)
-            self.state = parts[2:]
+            self.state = []
+            self.wall = None
+            for state in parts[2:]:
+                if 'St' in state:
+                    self.state.append(state)
+                elif 'Wall' in state:
+                    self.wall = state
+                else:
+                    print(f'Unhandled state: {state}')
         elif line.startswith('LiftBoost'):
             m = re.match(liftboost_re, line)
             self.liftboost = m .groups()
@@ -175,6 +209,8 @@ class Run():
         self.dead = False
         self.done = False
 
+        self.spacejams = []
+
     def valid(self):
         return len(self.msgs) != 0
 
@@ -199,11 +235,72 @@ class Run():
         ydeaths = []
         xspawns = []
         yspawns = []
+
+
         xvals = []
         yvals = []
+
+        sizes = []
+        colors = []
+        markers = []
+
+        self.state_bounds = defaultdict(list)
+
+        last_msg = None
         for msg in self.msgs:
             xvals.append(msg.pos[0])
             yvals.append(msg.pos[1])
+
+            marker = '.'
+            size = 1
+            color = 'k'
+            if not self.dead:
+                color = '#ff00ff'
+
+            if msg.dead:
+                marker = 'x'
+                size = 10
+                color = 'r'
+            elif 'StDash' in msg.state:
+                if msg.speed[1] == 0:
+                    marker = '_'  
+                elif msg.speed[0] == 0:
+                    marker = '|'
+                else:
+                    marker = 'x'
+                size = 8
+            elif 'StClimb' in msg.state:
+                marker = 'd'
+                if 'L' in msg.wall:
+                    marker = 4 #caretleft
+                else:
+                    marker = 5 #caretright
+                size = 8
+            elif 'StRedDash' in msg.state:
+                marker = 'o'
+                size = 16
+                color = 'r'
+            elif 'StDreamDash' in msg.state:
+                color = 'w'
+                marker = 'x'
+                size = 8
+            elif 'StSwim' in msg.state:
+                color = 'b'
+                size = 2
+            else:
+                marker = '.'
+            sizes.append(size)
+            colors.append(color)
+            markers.append(marker)
+            
+            if last_msg is not None:
+                for state in states:
+                    if state in msg.state:
+                        if not state in last_msg.state or len(self.state_bounds[state]) == 0:
+                            self.state_bounds[state].append(Bounds())
+                        self.state_bounds[state][-1].update(*msg.pos)
+
+            last_msg = msg
 
         if self.dead:
             xdeaths.append(self.msgs[-1].pos[0])
@@ -220,10 +317,31 @@ class Run():
             zorder = 10
             alpha = 1
 
-        ax.scatter(xvals, yvals, s=1, c=color, zorder=zorder, alpha = alpha)
+        def mscatter(x,y,ax=None, m=None, **kw):
+            import matplotlib.markers as mmarkers
+            if not ax: ax=plt.gca()
+            sc = ax.scatter(x,y,**kw)
+            if (m is not None) and (len(m)==len(x)):
+                paths = []
+                for marker in m:
+                    if isinstance(marker, mmarkers.MarkerStyle):
+                        marker_obj = marker
+                    else:
+                        marker_obj = mmarkers.MarkerStyle(marker)
+                    path = marker_obj.get_path().transformed(
+                                marker_obj.get_transform())
+                    paths.append(path)
+                sc.set_paths(paths)
+            return sc
+        mscatter(xvals, yvals, s=sizes, c=colors, m=markers, zorder=zorder, alpha=alpha)
+#        sc = ax.scatter(xvals, yvals, s=sizes, c=colors, zorder=zorder, alpha = alpha)
+
         ax.scatter(xdeaths, ydeaths, s=8, marker='x', c='r')
         ax.scatter(xspawns, yspawns, s=8, c='b')
-   
+
+        for bounds in self.state_bounds['StDreamDash']:
+            bounds.plot(ax, 'w', 'k', zorder=-10)
+
 
 class Room():
     def __init__(self):
