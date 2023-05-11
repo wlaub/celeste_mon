@@ -49,6 +49,7 @@ Example: 40 runs of a hidden berry room from the wednesday machine
 * large blue dots are the starts of runs (respawn or room transition)
 * the grid size is 8 pixels (1 in-game tile)
 * currently other game state information (velocity, frame number, player state, entity interactions) are not rendered
+* currently does not handle save states. my sorry.
 
 In the example image, the magenta sequence corresponds to:
 1. reverse wavedash right
@@ -82,7 +83,7 @@ In the example image, the magenta sequence corresponds to:
 
 h2. Applications 
 
-Timestamped gamestate data can be used in automatic video editing. For example, knowing the start time of a gameplay recording, the video can be edited to show only runs containing a room transition.
+Timestamped gamestate data can be used in automatic video editing. For example, knowing the start time of a gameplay recording, the video can be edited to show only runs containing a room transition (i.e. the first and last attempt of each room).
 
 It may also be possible to detect and count tech in a room.
 
