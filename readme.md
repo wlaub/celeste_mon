@@ -97,5 +97,6 @@ It may permit maps to be analyzed in the context of rhythm games i.e. as a sort 
 
 ## Limitations
 
-Boy howdy is it slow.
+* Boy howdy is it slow.
+* Lots of things.
 
