@@ -211,6 +211,13 @@ class Room():
     def valid(self):
         return len(self.runs) != 0
 
+    def index_data(self):
+        return {
+            'start': self.start_idx,
+            'end': self.end_idx,
+            'runs': len(self.runs),
+            }
+
     def update_bounds(self, msg):
         if self.bounds is None:
             self.bounds = [
@@ -294,7 +301,7 @@ def read_file(filename, start = 0, stop=None, limit = None):
 def make_index(rooms):
     index = defaultdict(list)
     for room in rooms:
-        index[room.name].append([room.start_idx, room.end_idx])
+        index[room.name].append(room.index_data())
     return index
 
 def write_index(filename, index):
@@ -308,7 +315,9 @@ def read_index(filename):
 
 def load_room_from_index(filename, index, room_name):
     result = []
-    for start, end in index[room_name]:
+    for entry in index[room_name]:
+        start = entry['start']
+        end = entry['end']
         msgs = read_file(filename, start, end)
         rooms = extract_rooms(msgs)
         if len(rooms) != 1:
@@ -323,7 +332,6 @@ def extract_rooms(msgs):
     for msg in msgs:
         troom.add_msg(msg)
         if troom.done and troom.valid():
-            print(troom)
             rooms.append(troom)
             troom = Room()
     if troom.valid() and  not troom in rooms:
@@ -373,13 +381,22 @@ class RoomSet():
                 bounds[3] = max(bounds[3], room.bounds[3])
 
         title = f'{room_name}: {runs} runs '
-        print(bounds)
 
         rect = patches.Rectangle(
                     (bounds[0], bounds[2]), bounds[1]-bounds[0], bounds[3]-bounds[2],
                     linewidth = 1, edgecolor = 'k', facecolor='none',
                     )
         ax.add_patch(rect)
+        ax.text(bounds[0], bounds[2], title, fontsize=8)
+
+    def print_rooms(self):
+        lines = []
+        for room, entries in self.index.items():
+            runs = sum(x['runs'] for x in entries)
+            line = f'{room}: {runs} runs'
+            lines.append(line)
+
+        print('\n'.join(lines))
 
     def configure_ax(self, ax):
         ax.set_aspect('equal')
@@ -389,13 +406,25 @@ class RoomSet():
         ax.set_axisbelow(True)
 
 
-infile = sys.argv[1]
-rooms = RoomSet(infile)
+if __name__ == '__main__':
+    infile = sys.argv[1]
+    rooms = RoomSet(infile)
 
-fig, ax = plt.subplots()
-rooms.plot_room(ax, 'C13berry')
-rooms.plot_room(ax, 'C11')
-rooms.plot_room(ax, 'C12')
-rooms.configure_ax(ax)
-plt.show()
+    rooms.print_rooms()
+
+    if len(sys.argv[2:]) == 0:
+        exit()
+
+
+    fig, ax = plt.subplots()
+    for name in sys.argv[2:]:
+        rooms.plot_room(ax, name)
+
+    #for name in ['c-01','c-02', 'c-03', 'c-04', 'c-b1', 'c-06', 'c-07', 'e-02']:
+    #    rooms.plot_room(ax, name)
+    #rooms.plot_room(ax, 'C13berry')
+    #rooms.plot_room(ax, 'C11')
+    #rooms.plot_room(ax, 'C12')
+    rooms.configure_ax(ax)
+    plt.show()
 
