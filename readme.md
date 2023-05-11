@@ -91,3 +91,7 @@ It may be helpful to inform level design processes that start with a sequence of
 
 It may permit maps to be analyzed in the context of rhythm games i.e. as a sort of sheet music.
 
+## Additional Graphs
+
+![image](additional_graphs.png)
+
