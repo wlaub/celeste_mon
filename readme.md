@@ -40,7 +40,8 @@ c-05: 4 runs
 ```
 
 Example: 40 runs of a hidden berry room from the wednesday machine
-![image][example_twm-c-b1.png]
+
+![image](example_twm-c-b1.png)
 
 black dots are positions in a run that ends in a death
 red x's are deaths
