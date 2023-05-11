@@ -27,7 +27,38 @@ class MessageId(enum.Enum):
     return_data = 0x31
     update_lines = 0x32
 
+class Bounds():
+    def __init__(self):
+        self.bounds = None
 
+    def update(self, xpos, ypos):
+        if self.bounds is None:
+            self.bounds = [
+                xpos, xpos, 
+                ypos, ypos
+                ]
+        else:
+            self.bounds[0] = min(self.bounds[0], xpos)
+            self.bounds[1] = max(self.bounds[1], xpos)
+            self.bounds[2] = min(self.bounds[2], ypos)
+            self.bounds[3] = max(self.bounds[3], ypos)
+
+    def expand(self, other):
+        if self.bounds is None:
+            self.bounds = list(other.bounds)
+        else:
+            self.bounds[0] = min(self.bounds[0], other.bounds[0])
+            self.bounds[1] = max(self.bounds[1], other.bounds[1])
+            self.bounds[2] = min(self.bounds[2], other.bounds[2])
+            self.bounds[3] = max(self.bounds[3], other.bounds[3])
+
+    def plot(self, ax, line, fill):
+        bounds = self.bounds        
+        rect = patches.Rectangle(
+                    (bounds[0], bounds[2]), bounds[1]-bounds[0], bounds[3]-bounds[2],
+                    linewidth = 1, edgecolor = line, facecolor=fill,
+                    )
+        ax.add_patch(rect)
 
 class Message():
     def __init__(self, fp):
@@ -201,7 +232,7 @@ class Room():
         self.trun = Run()
         self.done = False
 
-        self.bounds = None
+        self.bounds = Bounds()
         self.start_idx = None
         self.end_idx = None
 
@@ -219,19 +250,7 @@ class Room():
             }
 
     def update_bounds(self, msg):
-        if self.bounds is None:
-            self.bounds = [
-                msg.pos[0], #xmin
-                msg.pos[0], #xmax
-                msg.pos[1], #ymin
-                msg.pos[1], #ymax
-                ]
-        else:
-            self.bounds[0] = min(self.bounds[0], msg.pos[0])
-            self.bounds[1] = max(self.bounds[1], msg.pos[0])
-            self.bounds[2] = min(self.bounds[2], msg.pos[1])
-            self.bounds[3] = max(self.bounds[3], msg.pos[1])
-
+        self.bounds.update(*msg.pos)
 
     def update_index(self, msg):
         if self.start_idx is None:
@@ -368,26 +387,17 @@ class RoomSet():
 
     def plot_room(self, ax, room_name):
         runs = 0
-        bounds = None
+        bounds = Bounds()
         for room in self.get_room(room_name):
             room.plot(ax)
             runs += len(room.runs)
-            if bounds is None:
-                bounds = room.bounds
-            else:
-                bounds[0] = min(bounds[0], room.bounds[0])
-                bounds[1] = max(bounds[1], room.bounds[1])
-                bounds[2] = min(bounds[2], room.bounds[2])
-                bounds[3] = max(bounds[3], room.bounds[3])
+            bounds.expand(room.bounds)
 
         title = f'{room_name}: {runs} runs '
 
-        rect = patches.Rectangle(
-                    (bounds[0], bounds[2]), bounds[1]-bounds[0], bounds[3]-bounds[2],
-                    linewidth = 1, edgecolor = 'k', facecolor='none',
-                    )
-        ax.add_patch(rect)
-        ax.text(bounds[0], bounds[2], title, fontsize=8)
+        bounds.plot(ax, 'k', 'none')
+
+        ax.text(bounds.bounds[0], bounds.bounds[2], title, fontsize=8)
 
     def print_rooms(self):
         lines = []
