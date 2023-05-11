@@ -79,3 +79,14 @@ In the example image, the magenta sequence corresponds to:
 1. jump up
 1. dash up to exit room
 
+
+h2. Applications 
+
+Timestamped gamestate data can be used in automatic video editing. For example, knowing the start time of a gameplay recording, the video can be edited to show only runs containing a room transition.
+
+It may also be possible to detect and count tech in a room.
+
+It may be helpful to inform level design processes that start with a sequence of actions and then build a map around them or ascertaining patterns in personal gameplay preferences.
+
+It may permit maps to be analyzed in the context of rhythm games i.e. as a sort of sheet music.
+
