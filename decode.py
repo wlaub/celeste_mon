@@ -116,6 +116,8 @@ class Message():
         self.is_state = False
         self.nocontrol = False
         self.dead = False
+        self.retained = False
+        self.retain_value = 0
         self.statuses = []
 
         #find status string
@@ -155,6 +157,9 @@ class Message():
             self.liftboost = m .groups()
         elif line.startswith('NoControl'):
             self.nocontrol = True
+        elif line.startswith('Retained'):
+            self.retained = True
+            self.retain_value = float(line.split(' ')[-1])
         else:
             parts =  line.split()
             for part in parts:
@@ -208,6 +213,7 @@ class Run():
         self.msgs = []
         self.dead = False
         self.done = False
+        self.nocontrol = False
 
         self.spacejams = []
 
@@ -220,6 +226,7 @@ class Run():
             return self.done
 
         if msg.nocontrol:
+            self.nocontrol = True
             self.done = True
         if msg.dead:
             self.dead = True
@@ -271,7 +278,9 @@ class Run():
                 size = 8
             elif 'StClimb' in msg.state:
                 marker = 'd'
-                if 'L' in msg.wall:
+                if msg.wall is None:
+                    pass
+                elif 'L' in msg.wall:
                     marker = 4 #caretleft
                 else:
                     marker = 5 #caretright
@@ -289,6 +298,7 @@ class Run():
                 size = 2
             else:
                 marker = '.'
+
             sizes.append(size)
             colors.append(color)
             markers.append(marker)
@@ -432,6 +442,13 @@ def read_file(filename, start = 0, stop=None, limit = None):
                 break
             if limit is not None and len(msgs) > limit:
                 break
+
+    boop = set()
+    for msg in msgs:
+        boop.update(msg.statuses)
+        if not msg.is_state:
+            print(msg.data)
+    print(boop)
 
     return msgs
 
