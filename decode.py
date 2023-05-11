@@ -147,6 +147,8 @@ class Message():
             self.wall = None
             for state in parts[2:]:
                 if 'St' in state:
+                    if state == 'StIntroRespawn':
+                        self.dead = True
                     self.state.append(state)
                 elif 'Wall' in state:
                     self.wall = state
@@ -445,7 +447,7 @@ def read_file(filename, start = 0, stop=None, limit = None):
 
 #    boop = set()
 #    for msg in msgs:
-#        boop.update(msg.statuses)
+#        boop.update(msg.state)
 #        if not msg.is_state:
 #            print(msg.data)
 #    print(boop)
