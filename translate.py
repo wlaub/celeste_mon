@@ -22,6 +22,9 @@ from model import MessageId, state_to_idx, Status
 from party import GameState
 
 
+class IgnoreMessage(Exception):
+    pass
+
 class Message():
     def __init__(self, fp):
         self.file_start_idx = fp.tell()
@@ -34,6 +37,11 @@ class Message():
         self.id_raw = fp.read(1)
         id_ = ord(self.id_raw)
         self.id = MessageId(id_)
+
+#        if self.id in {MessageId.send_current_bindings}:
+#            raise IgnoreMessage
+
+
         self.sig_raw = fp.read(4)
         self.signature = struct.unpack('I', self.sig_raw)[0]
         self.size_raw = fp.read(4)
@@ -55,7 +63,9 @@ class Message():
         data = serializer.Deserialize(reader)
         self.data = list(data)
         if len(self.data) != 9:
-            print(self.data)
+            print(self.id)
+            print(len(self.data))
+            raise IgnoreMessage
 
         reader.Close()
 
@@ -259,6 +269,7 @@ if __name__ == '__main__':
     with open(infile, 'rb') as fp:
         idx = 0
         bad = 0
+        weird = 0
         while True:
             try:
                 msg= Message(fp)
@@ -266,14 +277,15 @@ if __name__ == '__main__':
                 idx += 1
                 if idx%1000 ==0:
                     print(idx)
-#                if idx > 1000: break
             except RuntimeError:
                 break
+            except IgnoreMessage:
+                weird += 1
             except SerializationException:
                 bad +=1
 
 
-    print(f'{len(msgs)} messages processed. {bad} bad messages ignored')
+    print(f'{len(msgs)} messages processed. {bad} bad messages ignored. {weird} inscrutable messages ignored.')
     mid_time = time.time()
     print(f'msgs loaded in {mid_time-start_time:.2f} s')
 
