@@ -27,7 +27,9 @@ class MessageId(enum.Enum):
     return_data = 0x31
     update_lines = 0x32
 
-states = [
+OFFSETS = set()
+
+states = {
 'StNormal',
 'StClimb',
 'StDash',
@@ -51,7 +53,7 @@ states = [
 'StTempleFall',
 'StCassetteFly',
 'StAttract',
-]
+}
 
 class Bounds():
     def __init__(self):
@@ -119,6 +121,13 @@ class Message():
         self.retained = False
         self.retain_value = 0
         self.statuses = []
+
+        try:
+            val = struct.unpack('>H', self.data[69:71])[0]
+            print(self.data[69:71])
+            OFFSETS.add(val)
+        except:
+            print(len(self.data))
 
         #find status string
         offset = self.data.find(b'Pos')
@@ -216,8 +225,7 @@ class Run():
         self.dead = False
         self.done = False
         self.nocontrol = False
-
-        self.spacejams = []
+        self.savestate = False
 
     def valid(self):
         return len(self.msgs) != 0
@@ -292,7 +300,7 @@ class Run():
                 size = 16
                 color = 'r'
             elif 'StDreamDash' in msg.state:
-                color = 'w'
+                color = '#ffff00'
                 marker = 'x'
                 size = 8
             elif 'StSwim' in msg.state:
@@ -352,7 +360,7 @@ class Run():
         ax.scatter(xspawns, yspawns, s=8, c='b')
 
         for bounds in self.state_bounds['StDreamDash']:
-            bounds.plot(ax, 'w', 'k', zorder=-10)
+            bounds.plot(ax, 'k', 'k', zorder=-10)
 
 
 class Room():
@@ -394,6 +402,8 @@ class Room():
             return self.done
         
         if not msg.is_state:
+            if self.name is not None:
+                print(f'Ended room {self.name} on unhandled msg')
             return self.done
 
 
@@ -445,12 +455,12 @@ def read_file(filename, start = 0, stop=None, limit = None):
             if limit is not None and len(msgs) > limit:
                 break
 
-#    boop = set()
-#    for msg in msgs:
-#        boop.update(msg.state)
+    boop = set()
+    for msg in msgs[:10]:
+        boop.update(msg.statuses)
 #        if not msg.is_state:
-#            print(msg.data)
-#    print(boop)
+        print(msg.data)
+    print(boop)
 
     return msgs
 
@@ -558,6 +568,8 @@ if __name__ == '__main__':
     rooms = RoomSet(infile)
 
     rooms.print_rooms()
+
+    print(OFFSETS)
 
     if len(sys.argv[2:]) == 0:
         exit()
